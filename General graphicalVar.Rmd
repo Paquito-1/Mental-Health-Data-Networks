@@ -33,7 +33,6 @@ Now, let us set our working directory to where we have our files. Well also set 
 Below, we load our data table and get our variables.  
 
 ```{r}
-setwd("~/Documents/Fall 2021 MIT/R Data")
 Daily_Data <- read.csv("CrossCheck_Daily_Data.csv")
 print(Daily_Data)
 varLabs <- c('ema_CALM', 'ema_SOCIAL', 'ema_SLEEPING', 'ema_THINK', 'ema_HOPEFUL',
