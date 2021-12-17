@@ -1,0 +1,134 @@
+---
+title: "Network Analysis of Multivariate Data: Streamlined Gaussian Graphical Model"
+output: html_notebook
+---
+  
+  <!-- [R Markdown](http://rmarkdown.rstudio.com) -->
+  <!-- Try executing this chunk by clicking the Run: *Cmd+Shift+Enter*.  -->
+  <!-- Insert Chunk: *Cmd+Option+I* -->
+  <!-- Preview: *Cmd+Shift+K* -->
+  <!-- Comment: *Cmd+Shift+C* -->
+  
+This is an R Markdown Notebook explaining the Mental Health code in Network Analysis of Multivariate Data
+
+First, let's import the necessary packages
+```{r}
+library(ggplot2)
+library(dplyr)
+library(mlVAR)
+library(qgraph)
+library(bootnet)
+library(reshape)
+library(viridis)
+#install.packages("lm.beta") # Added
+library(lm.beta)
+library(lubridate)
+library(graphicalVAR)
+library(igraph)
+#install.packages("vars")
+#library(vars)
+```
+
+Now, let us set our working directory to where we have our files. Well also set ourselves up for the figure and data directory
+Below, we load our data table and get our variables.  
+
+```{r}
+setwd("~/Documents/Fall 2021 MIT/R Data")
+Daily_Data <- read.csv("CrossCheck_Daily_Data.csv")
+print(Daily_Data)
+varLabs <- c('ema_CALM', 'ema_SOCIAL', 'ema_SLEEPING', 'ema_THINK', 'ema_HOPEFUL',
+       'ema_VOICES', 'ema_SEEING_THINGS', 'ema_STRESSED', 'ema_HARM',
+       'ema_DEPRESSED')
+Daily_Data <- na.omit(Daily_Data[c('study_id', 'ema_CALM', 'ema_SOCIAL', 'ema_SLEEPING', 'ema_THINK', 'ema_HOPEFUL', 'ema_VOICES', 'ema_SEEING_THINGS', 'ema_STRESSED', 'ema_HARM', 'ema_DEPRESSED')]) # Get rid of non-data days
+names(Daily_Data)[names(Daily_Data) == 'study_id'] <- 'id'
+ids <- unique(Daily_Data$id)
+```
+
+```{r}
+get_Network_2 <- function(data, id_name) {
+  vars <- c(colnames(Daily_Data)) # These are the variables we want to investigate
+  # Alpha to detrend:
+  alpha <- 0.05
+  user_3 <- Daily_Data
+  # names(Daily_Data)[names(Daily_Data) %in% vars] <- varLabs
+  
+  varLabs <- vars
+  varLabs <- varLabs[!varLabs %in% c("id")]
+  needed_vars <- varLabs
+  Needed_df = user_3[needed_vars]
+  
+  p_values <- data.frame(
+  var = c("day")
+  )
+  
+  # Also empty data frame list for test statistics:
+  testStatistics <- list()
+  coefficients <- list()
+  stdcoefficients <- list()
+  
+  # Data frame to store detrended data:
+  data_detrended <- Needed_df
+  
+  new_vars <- varLabs[!varLabs %in% c("day")]
+  data_detrended = data_detrended[new_vars]
+  varLabs <- new_vars
+  
+  # -------------------------------------------------------------------------
+  # ------------------------ 3. Here we detrend data ------------------------
+  # -------------------------------------------------------------------------
+  for (v in seq_along(varLabs)){
+    formula <- as.formula(paste0(varLabs[v], " ~ 1 + day")) # 
+    lmRes <- lm(formula, data = Needed_df)
+    # Fixed effects:
+    fixed <- coef(lmRes) # Get the model coefficients
+    # make zero if not significant at alpha
+    p_values[[varLabs[v]]] <- anova(lmRes)[["Pr(>F)"]][1] # Anova, difference of means
+    # A table with p values for each ema collected 
+    if (p_values[[varLabs[v]]][1] > alpha){
+      fixed[2] <- 0
+    }  
+  
+    # Detrend data:
+    data_detrended[,varLabs[v]] <- Needed_df[,varLabs[v]] - (fixed[1] + fixed[2] * Needed_df[["day"]])
+    
+    ids <- rownames(anova(lmRes))
+    # "day"          "factor(beep)" "Residuals"
+    testStatistics[[v]] <- cbind(data.frame(var = varLabs[v], effect = ids), anova(lmRes))
+    
+    coefficients[[v]] <- data.frame(
+      var = varLabs[v],
+      type = names(coef(lmRes)),
+      coef = coef(lmRes),
+      std = coef(lm.beta(lmRes)) # Standardized regression coefficients = lm.beta
+    )
+  }
+  
+  # -------------------------------------------------------------------------
+  # ------------------ 4. Here we estimate network models ------------------
+  # -------------------------------------------------------------------------
+  
+  data_detrended[['id']] <- rep(c(id_name), times=nrow(data_detrended))
+  
+  # Estimate network using multilevel VAR model
+  res <- graphicalVAR(data_detrended,
+               vars = varLabs,
+               idvar='id',
+               gamma = 0.5,
+               lags = 1)
+  
+  # cont <- getNet(res, "contemporaneous", layout = "spring", nonsig = "hide", rule = "and")
+  return(res)
+}
+```
+
+Here you can choose which patient to get the network from in c(user_name)
+```{r}
+for (id_val in c(-1)){
+  Daily_Data <- subset(Daily_Data, id %in% c(id_val)) # Can't use id_val = id here *oof*
+  Daily_Data$day <- seq.int(nrow(Daily_Data))
+  res <- get_Network_2(Daily_Data, id)
+  plot(res, "PCC", layout = "circle")
+  plot(res, "PDC", layout = "circle")
+
+}
+```
