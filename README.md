@@ -1,3 +1,3 @@
-# Personality-Data
+# Network Analysis of Mental Health Data
 
-An exploration of applying models (Multi-level Vector Auto Regression & Gaussian Graphical Modeling) to the CrossCheck Dataset. 
+This repository explores the predictive and interpretable capabilities of applying Multi-level Vector Auto Regression & Gaussian Graphical Modeling to the CrossCheck Dataset. 
